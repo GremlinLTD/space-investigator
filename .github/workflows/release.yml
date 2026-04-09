@@ -1,0 +1,180 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "build.rs"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version override (e.g. 1.0.0). Leave empty for auto-increment from commit messages."
+        required: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Bump version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump version
+        id: bump
+        uses: cocogitto/cocogitto-action@390bda87a19bf627e03ad075c67a11e9ddbb7547 # v4
+        with:
+          command: bump
+          args: ${{ github.event.inputs.version && format('--version {0}', github.event.inputs.version) || '--auto' }}
+          git-user: "github-actions[bot]"
+          git-user-email: "github-actions[bot]@users.noreply.github.com"
+
+      - name: Push tag
+        run: |
+          git push origin main --tags
+
+  changelog:
+    name: Generate changelog
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@c93ef52f3d0ddcdcc9bd5447d98d458a11cd4f72 # v4
+        with:
+          config: cliff.toml
+          args: --verbose
+        env:
+          OUTPUT: CHANGELOG.md
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    name: Test
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: v${{ needs.version.outputs.version }}
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - run: cargo test --locked
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: [version, test]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: v${{ needs.version.outputs.version }}
+
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package (unix)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../si-v${{ needs.version.outputs.version }}-${{ matrix.target }}.tar.gz si
+          cd ../../..
+          if command -v sha256sum > /dev/null; then
+            sha256sum si-v${{ needs.version.outputs.version }}-${{ matrix.target }}.tar.gz
+          else
+            shasum -a 256 si-v${{ needs.version.outputs.version }}-${{ matrix.target }}.tar.gz
+          fi > si-v${{ needs.version.outputs.version }}-${{ matrix.target }}.tar.gz.sha256
+
+      - name: Package (windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path target/${{ matrix.target }}/release/si.exe -DestinationPath si-v${{ needs.version.outputs.version }}-${{ matrix.target }}.zip
+          (Get-FileHash si-v${{ needs.version.outputs.version }}-${{ matrix.target }}.zip -Algorithm SHA256).Hash.ToLower() + "  si-v${{ needs.version.outputs.version }}-${{ matrix.target }}.zip" | Out-File -Encoding ascii si-v${{ needs.version.outputs.version }}-${{ matrix.target }}.zip.sha256
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: si-${{ matrix.target }}
+          path: |
+            si-v${{ needs.version.outputs.version }}-${{ matrix.target }}.*
+
+  release:
+    name: Create Release
+    needs: [version, build, changelog]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          ref: v${{ needs.version.outputs.version }}
+
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@c93ef52f3d0ddcdcc9bd5447d98d458a11cd4f72 # v4
+        id: cliff
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          body: ${{ steps.cliff.outputs.content }}
+          files: |
+            si-*
