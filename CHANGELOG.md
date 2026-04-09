@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v1.0.1](https://github.com/gremlinltd/space-investigator/compare/9d84569edc3063c00e0ad18597f3108c56fd4c9a..v1.0.1) - 2026-04-09
+#### Bug fixes
+- improve changelog config (#16) - ([9d84569](https://github.com/gremlinltd/space-investigator/commit/9d84569edc3063c00e0ad18597f3108c56fd4c9a)) - Michael
+
+- - -
+
 ## [v1.0.0](https://github.com/gremlinltd/space-investigator/compare/b76e918bb825cc28dded5f62d6c9f76c1454f89b..v1.0.0) - 2026-04-09
 #### Features
 - initial release of space-investigator (si) - ([b76e918](https://github.com/gremlinltd/space-investigator/commit/b76e918bb825cc28dded5f62d6c9f76c1454f89b)) - Michael Leer
