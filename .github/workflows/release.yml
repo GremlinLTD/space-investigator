@@ -40,14 +40,18 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
+      - name: Install cocogitto
+        run: |
+          curl -sSL https://github.com/cocogitto/cocogitto/releases/latest/download/cocogitto-7.0.0-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
+
       - name: Bump version
         id: bump
-        uses: cocogitto/cocogitto-action@390bda87a19bf627e03ad075c67a11e9ddbb7547 # v4
-        with:
-          command: bump
-          args: ${{ github.event.inputs.version && format('--version {0}', github.event.inputs.version) || '--auto' }}
-          git-user: "gremlinltd-release-bot[bot]"
-          git-user-email: "gremlinltd-release-bot[bot]@users.noreply.github.com"
+        run: |
+          git config --global user.name "gremlinltd-release-bot[bot]"
+          git config --global user.email "gremlinltd-release-bot[bot]@users.noreply.github.com"
+          cog bump ${{ github.event.inputs.version && format('--version {0}', github.event.inputs.version) || '--auto' }}
+          VERSION=$(git describe --tags --abbrev=0)
+          echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Push tag
         run: |
