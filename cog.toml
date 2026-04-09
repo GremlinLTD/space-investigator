@@ -1,0 +1,29 @@
+[general]
+branch_whitelist = ["main", "develop", "release/**", "hotfix/**"]
+tag_prefix = "v"
+skip_ci = "[skip ci]"
+skip_untracked = false
+ignore_merge_commits = true
+
+[changelog]
+path = "CHANGELOG.md"
+template = "remote"
+remote = "github.com"
+repository = "space-investigator"
+owner = "gremlinltd"
+
+[bump]
+pre_bump_hooks = []
+post_bump_hooks = ["git push", "git push origin {{version}}"]
+
+[commit_types]
+feat = { changelog_title = "Features" }
+fix = { changelog_title = "Bug fixes" }
+docs = { changelog_title = "Documentation", omit_from_changelog = true }
+style = { changelog_title = "Style", omit_from_changelog = true }
+refactor = { changelog_title = "Refactoring" }
+perf = { changelog_title = "Performance" }
+test = { changelog_title = "Tests", omit_from_changelog = true }
+build = { changelog_title = "Build", omit_from_changelog = true }
+ci = { changelog_title = "CI/CD", omit_from_changelog = true }
+chore = { changelog_title = "Chores", omit_from_changelog = true }

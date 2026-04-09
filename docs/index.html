@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>space-investigator</title>
+<meta name="description" content="Disk space analysis tool written in Rust. Find the biggest files and directories on any disk.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231A1F36'/><text x='4' y='24' font-family='monospace' font-size='22' font-weight='700'><tspan fill='%23fff'>s</tspan><tspan fill='%2300D4AA'>.</tspan></text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    /* Gremlin dark mode palette */
+    --bg: #0A0D1A;
+    --surface: #141829;
+    --surface-raised: #1C2135;
+    --border: #2A3142;
+    --border-dim: #1E2538;
+    --text: #A8B2C7;
+    --text-muted: #6B7280;
+    --text-bright: #E8EBF0;
+    --teal: #00E5BB;
+    --teal-brand: #00D4AA;
+    --teal-text: #009E7E;
+    --teal-glow: rgba(0, 212, 170, 0.1);
+    --coral: #FF7A7A;
+    --coral-brand: #FF6B6B;
+    --green: #10B981;
+    --font: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', Consolas, monospace;
+    --radius: 8px;
+    --radius-sm: 4px;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-weight: 400;
+    line-height: 1.7;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* subtle scanlines */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(0, 212, 170, 0.008) 3px,
+      rgba(0, 212, 170, 0.008) 6px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .wrapper {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ---- HEADER ---- */
+  header {
+    padding: 80px 0 56px;
+    border-bottom: 1px solid var(--border-dim);
+  }
+
+  .gremlin-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    margin-bottom: 24px;
+  }
+
+  .gremlin-tag .teal-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--teal-brand);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--teal-brand);
+  }
+
+  h1 {
+    font-weight: 700;
+    font-size: clamp(1.6rem, 4vw, 2.2rem);
+    color: var(--text-bright);
+    line-height: 1.2;
+    margin-bottom: 20px;
+    letter-spacing: -0.03em;
+  }
+
+  h1 .prompt {
+    color: var(--teal);
+    font-weight: 400;
+  }
+
+  h1 .dot {
+    color: var(--teal-brand);
+  }
+
+  .tagline {
+    font-size: 0.9rem;
+    font-weight: 300;
+    color: var(--text);
+    max-width: 500px;
+    line-height: 1.8;
+  }
+
+  .badges {
+    margin-top: 24px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+
+  .badge.teal {
+    border-color: var(--teal-text);
+    color: var(--teal);
+    background: var(--teal-glow);
+  }
+
+  /* ---- SECTIONS ---- */
+  section {
+    padding: 48px 0;
+    border-bottom: 1px solid var(--border-dim);
+  }
+
+  section:last-of-type {
+    border-bottom: none;
+  }
+
+  .section-label {
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--teal-text);
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  h2 {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-bright);
+    margin-bottom: 12px;
+    letter-spacing: 0.01em;
+  }
+
+  h2::before {
+    content: '$ ';
+    color: var(--teal);
+    font-weight: 400;
+  }
+
+  p {
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+    font-weight: 300;
+    line-height: 1.8;
+  }
+
+  p:last-child { margin-bottom: 0; }
+
+  a {
+    color: var(--teal);
+    text-decoration: none;
+    border-bottom: 1px solid var(--teal-text);
+    transition: border-color 0.2s;
+  }
+
+  a:hover {
+    border-color: var(--teal);
+  }
+
+  a:focus-visible {
+    outline: 2px solid var(--teal-brand);
+    outline-offset: 2px;
+  }
+
+  /* ---- CODE BLOCKS ---- */
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border-dim);
+    border-left: 3px solid var(--teal-text);
+    padding: 20px 24px;
+    margin: 16px 0;
+    overflow-x: auto;
+    font-size: 0.78rem;
+    line-height: 1.8;
+    border-radius: var(--radius);
+  }
+
+  code {
+    font-family: var(--font);
+    font-size: inherit;
+  }
+
+  p code, li code, td code {
+    background: var(--surface);
+    padding: 2px 7px;
+    border: 1px solid var(--border-dim);
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    color: var(--teal);
+  }
+
+  .prompt { color: var(--text-muted); user-select: none; }
+  .cmd { color: var(--text-bright); }
+  .flag { color: var(--teal); }
+  .comment { color: var(--text-muted); font-style: italic; }
+
+  /* ---- REPLACED SCRIPT ---- */
+  .old-script {
+    position: relative;
+    margin: 16px 0;
+  }
+
+  .old-script pre {
+    border-left-color: var(--coral-brand);
+    opacity: 0.75;
+    font-size: 0.72rem;
+  }
+
+  .old-script .replaced-label {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    font-size: 0.6rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--coral);
+    background: var(--surface-raised);
+    padding: 4px 10px;
+    border-radius: 0 var(--radius) 0 var(--radius-sm);
+    border-bottom: 1px solid var(--border-dim);
+    border-left: 1px solid var(--border-dim);
+  }
+
+  /* ---- TABLE ---- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 0.78rem;
+  }
+
+  th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--teal);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-dim);
+    vertical-align: top;
+    font-weight: 300;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  td:first-child {
+    color: var(--text-bright);
+    white-space: nowrap;
+    font-weight: 400;
+  }
+
+  /* ---- FEATURE LIST ---- */
+  .features {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border-dim);
+    border: 1px solid var(--border-dim);
+    margin: 20px 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .feature {
+    background: var(--surface);
+    padding: 20px;
+  }
+
+  .feature-name {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-bright);
+    margin-bottom: 6px;
+  }
+
+  .feature-name::before {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    background: var(--teal-brand);
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+    box-shadow: 0 0 6px var(--teal-brand);
+  }
+
+  .feature-desc {
+    font-size: 0.75rem;
+    font-weight: 300;
+    color: var(--text-muted);
+    line-height: 1.6;
+    padding-left: 13px;
+  }
+
+  /* ---- INSTALL METHODS ---- */
+  .install-methods {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .install-method {
+    background: var(--surface);
+    border: 1px solid var(--border-dim);
+    padding: 20px;
+    border-radius: var(--radius);
+  }
+
+  .install-method .method-label {
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .install-method pre {
+    margin: 0;
+    border: none;
+    border-left: none;
+    padding: 0;
+    background: transparent;
+  }
+
+  /* ---- JSON SAMPLE ---- */
+  .json-key { color: var(--teal); }
+  .json-str { color: var(--green); }
+  .json-num { color: var(--text-bright); }
+
+  /* ---- FOOTER ---- */
+  footer {
+    padding: 40px 0 60px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .footer-brand {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .footer-brand .dot {
+    color: var(--teal-brand);
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+
+  footer a {
+    color: var(--text-muted);
+    border-bottom-color: var(--border);
+  }
+
+  footer a:hover {
+    color: var(--teal);
+    border-bottom-color: var(--teal-text);
+  }
+
+  /* ---- ANIMATIONS ---- */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  header, section, footer {
+    animation: fadeUp 0.4s ease both;
+  }
+
+  section:nth-of-type(1) { animation-delay: 0.06s; }
+  section:nth-of-type(2) { animation-delay: 0.12s; }
+  section:nth-of-type(3) { animation-delay: 0.18s; }
+  section:nth-of-type(4) { animation-delay: 0.24s; }
+  section:nth-of-type(5) { animation-delay: 0.30s; }
+  footer { animation-delay: 0.36s; }
+
+  /* ---- RESPONSIVE ---- */
+  @media (max-width: 560px) {
+    header { padding: 48px 0 40px; }
+    section { padding: 36px 0; }
+    .features { grid-template-columns: 1fr; }
+    footer { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="gremlin-tag">
+      <span class="teal-dot"></span>
+      gremlin.
+    </div>
+    <h1><span class="prompt">&gt; </span>space-investigator<span class="dot">.</span></h1>
+    <p class="tagline">
+      Disk space analysis. Point it at a directory, get the biggest files
+      and directories back. Written in Rust, walks filesystems in parallel.
+    </p>
+    <div class="badges">
+      <span class="badge teal">Rust</span>
+      <span class="badge">MIT License</span>
+      <span class="badge">Linux / macOS / Windows</span>
+    </div>
+  </header>
+
+  <!-- ORIGIN STORY -->
+  <section>
+    <span class="section-label">01 / Origin story</span>
+    <h2>Where this came from</h2>
+    <p>
+      I used to work at Rackspace, over a decade ago now. The senior engineers
+      there kept an internal wiki of useful scripts, and over a few years it
+      turned into this massive collection of one-liners for every situation
+      you'd run into on a customer's server.
+    </p>
+    <p>
+      Some of the scripts needed extra tools the original author had installed.
+      You'd copy a command, paste it on a box, and it'd fail because
+      <code>ncdu</code> or <code>sar</code> or some other utility wasn't
+      there. So you'd end up with multiple versions of the same script,
+      slightly different depending on which tools the author preferred.
+      Some people focused on writing versions that only used tools from
+      the base kickstart install so they'd work on any box, which got
+      you stuff like this:
+    </p>
+    <div class="old-script">
+      <span class="replaced-label">The original</span>
+      <pre><code>FS='./';resize;clear;date;df -h $FS; echo "Largest Directories:"; \
+nice -n19 find $FS -mount -type d -print0 2>/dev/null|xargs -0 du -k| \
+sort -runk1|head -n20|awk -F'\t' '{printf "%8d MB\t%s\n",($1/1024),$NF}'; \
+echo "Largest Files:"; nice -n 19 find $FS -mount -type f -print0 2>/dev/null| \
+xargs -0 du -k | sort -rnk1| head -n20 | \
+awk -F'\t' '{printf "%8d MB\t%s\n",($1/1024),$NF}';</code></pre>
+    </div>
+    <p>
+      It works. Nobody is typing that from memory though. The knowledge base was probably
+      the most visited page on our wiki, everyone had it bookmarked just for
+      commands like this.
+    </p>
+    <p>
+      The other problem: on a filesystem with thousands of small files, it'd
+      take forever. Single-threaded <code>find</code> piped to
+      <code>du</code>, waiting, waiting.
+    </p>
+    <p>
+      So this is a Rust rewrite of that snippet. Same job, but parallel, and
+      you just type <code>si /path</code>.
+    </p>
+  </section>
+
+  <!-- FEATURES -->
+  <section>
+    <span class="section-label">02 / What you get</span>
+    <h2>Features</h2>
+    <div class="features">
+      <div class="feature">
+        <div class="feature-name">Filesystem info</div>
+        <div class="feature-desc">Total, used, and available space for the target mount, like df -h.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-name">Parallel walking</div>
+        <div class="feature-desc">Uses jwalk to traverse directories across multiple threads.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-name">Mount boundaries</div>
+        <div class="feature-desc">Won't cross into other filesystems. Same as find -mount.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-name">JSON output</div>
+        <div class="feature-desc">Pass --json to get structured output you can feed into jq or other tools.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section>
+    <span class="section-label">03 / Getting started</span>
+    <h2>Install</h2>
+    <div class="install-methods">
+      <div class="install-method">
+        <span class="method-label">Download a binary</span>
+        <pre><code><span class="comment"># grab the latest release for your platform</span>
+<span class="prompt">$ </span><span class="cmd">curl -LO https://github.com/gremlinltd/space-investigator/releases/latest/download/si-&lt;target&gt;.tar.gz</span>
+<span class="prompt">$ </span><span class="cmd">tar xzf si-*.tar.gz</span>
+<span class="prompt">$ </span><span class="cmd">./si --help</span></code></pre>
+      </div>
+      <div class="install-method">
+        <span class="method-label">Build from source</span>
+        <pre><code><span class="prompt">$ </span><span class="cmd">git clone https://github.com/gremlinltd/space-investigator.git</span>
+<span class="prompt">$ </span><span class="cmd">cd space-investigator</span>
+<span class="prompt">$ </span><span class="cmd">cargo install --path .</span></code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- USAGE -->
+  <section>
+    <span class="section-label">04 / Usage</span>
+    <h2>Running it</h2>
+    <pre><code><span class="prompt">$ </span><span class="cmd">si</span> <span class="flag">[OPTIONS]</span> <span class="flag">[PATH]</span></code></pre>
+
+    <table>
+      <thead>
+        <tr><th>Flag</th><th>What it does</th><th>Default</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>PATH</code></td><td>Directory to scan</td><td><code>.</code></td></tr>
+        <tr><td><code>-d, --dirs &lt;N&gt;</code></td><td>Top directories to show</td><td><code>20</code></td></tr>
+        <tr><td><code>-f, --files &lt;N&gt;</code></td><td>Top files to show</td><td><code>20</code></td></tr>
+        <tr><td><code>-j, --json</code></td><td>Output JSON</td><td>off</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Examples</h2>
+    <pre><code><span class="comment"># scan current directory</span>
+<span class="prompt">$ </span><span class="cmd">si</span>
+
+<span class="comment"># scan /var, show top 10 of each</span>
+<span class="prompt">$ </span><span class="cmd">si /var</span> <span class="flag">-d 10 -f 10</span>
+
+<span class="comment"># JSON output, pipe to jq</span>
+<span class="prompt">$ </span><span class="cmd">si /home</span> <span class="flag">--json</span> | jq '.largest_files[:5]'</code></pre>
+  </section>
+
+  <!-- JSON OUTPUT -->
+  <section>
+    <span class="section-label">05 / JSON output</span>
+    <h2>Structured output</h2>
+    <p>The <code>--json</code> flag gives you everything in a machine-readable format:</p>
+    <pre><code>{
+  <span class="json-key">"timestamp"</span>: <span class="json-str">"2026-04-09T20:57:03+03:00"</span>,
+  <span class="json-key">"path"</span>: <span class="json-str">"/home"</span>,
+  <span class="json-key">"filesystem"</span>: {
+    <span class="json-key">"name"</span>: <span class="json-str">"Macintosh HD"</span>,
+    <span class="json-key">"total_bytes"</span>: <span class="json-num">1995218165760</span>,
+    <span class="json-key">"used_bytes"</span>: <span class="json-num">1241711876544</span>,
+    <span class="json-key">"available_bytes"</span>: <span class="json-num">753506289216</span>,
+    <span class="json-key">"use_percent"</span>: <span class="json-num">62</span>
+  },
+  <span class="json-key">"largest_directories"</span>: [
+    { <span class="json-key">"path"</span>: <span class="json-str">"/home/user/projects"</span>, <span class="json-key">"size_bytes"</span>: <span class="json-num">5368709120</span>, <span class="json-key">"size_mb"</span>: <span class="json-num">5120</span> }
+  ],
+  <span class="json-key">"largest_files"</span>: [
+    { <span class="json-key">"path"</span>: <span class="json-str">"/home/user/backup.tar.gz"</span>, <span class="json-key">"size_bytes"</span>: <span class="json-num">2147483648</span>, <span class="json-key">"size_mb"</span>: <span class="json-num">2048</span> }
+  ]
+}</code></pre>
+  </section>
+
+  <footer>
+    <span>Built by <a href="https://github.com/trozz">Michael Leer</a> at <span class="footer-brand">gremlin<span class="dot">.</span></span></span>
+    <div class="footer-links">
+      <a href="https://github.com/gremlinltd/space-investigator">GitHub</a>
+      <span>MIT License</span>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

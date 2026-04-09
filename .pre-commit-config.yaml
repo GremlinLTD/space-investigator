@@ -1,0 +1,35 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: conventional-commit
+        name: Conventional commit check
+        description: Validate commit message with cocogitto.
+        entry: bash -c 'cog verify --file .git/COMMIT_EDITMSG'
+        language: system
+        stages: [commit-msg]
+        always_run: true
+        pass_filenames: false
+      - id: rust-fmt
+        name: Rust formatting
+        description: Run cargo fmt on files included in the commit.
+        entry: cargo fmt --all --
+        pass_filenames: true
+        types: [file, rust]
+        language: system
+      - id: rust-clippy
+        name: Rust clippy
+        description: Run cargo clippy on files included in the commit.
+        entry: cargo clippy --all-targets --all-features -- -Dclippy::all
+        pass_filenames: false
+        types: [file, rust]
+        language: system
