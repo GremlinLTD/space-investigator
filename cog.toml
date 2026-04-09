@@ -4,7 +4,7 @@ skip_ci = "[skip ci]"
 skip_untracked = false
 ignore_merge_commits = true
 pre_bump_hooks = []
-post_bump_hooks = ["git push", "git push origin {{version}}"]
+post_bump_hooks = []
 
 [changelog]
 path = "CHANGELOG.md"
