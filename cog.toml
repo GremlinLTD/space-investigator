@@ -1,9 +1,10 @@
-[general]
 branch_whitelist = ["main", "develop", "release/**", "hotfix/**"]
 tag_prefix = "v"
 skip_ci = "[skip ci]"
 skip_untracked = false
 ignore_merge_commits = true
+pre_bump_hooks = []
+post_bump_hooks = ["git push", "git push origin {{version}}"]
 
 [changelog]
 path = "CHANGELOG.md"
@@ -11,10 +12,6 @@ template = "remote"
 remote = "github.com"
 repository = "space-investigator"
 owner = "gremlinltd"
-
-[bump]
-pre_bump_hooks = []
-post_bump_hooks = ["git push", "git push origin {{version}}"]
 
 [commit_types]
 feat = { changelog_title = "Features" }
