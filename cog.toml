@@ -3,6 +3,7 @@ tag_prefix = "v"
 skip_ci = "[skip ci]"
 skip_untracked = false
 ignore_merge_commits = true
+disable_changelog = true
 pre_bump_hooks = []
 post_bump_hooks = []
 
