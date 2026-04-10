@@ -4,7 +4,11 @@ skip_ci = "[skip ci]"
 skip_untracked = false
 ignore_merge_commits = true
 disable_changelog = true
-pre_bump_hooks = []
+pre_bump_hooks = [
+    "sed -i 's/^version = \".*\"/version = \"{{version}}\"/' Cargo.toml",
+    "cargo generate-lockfile",
+    "git add Cargo.toml Cargo.lock",
+]
 post_bump_hooks = []
 
 [changelog]
