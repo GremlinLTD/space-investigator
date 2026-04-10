@@ -1,4 +1,10 @@
-# space-investigator (`si`)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo.svg">
+  <source media="(prefers-color-scheme: light)" srcset=".github/assets/logo-dark.svg">
+  <img alt="si" src=".github/assets/logo-dark.svg" width="160">
+</picture>
+
+# space-investigator
 
 Disk space analysis. Finds the biggest files and directories, runs in parallel, single binary.
 
