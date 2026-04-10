@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.3] - 2026-04-10
+
+### Bug fixes
+
+- Update Cargo.toml version during releases (#20) ([fc9b366](https://github.com/gremlinltd/space-investigator/commit/fc9b3667674253b301c9a08d49893bc0e2462ce1)) - @Trozz
+
 ## [1.0.2] - 2026-04-10
 
 ### Bug fixes
