@@ -15,7 +15,7 @@ jobs:
     name: Check for stale PRs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@b5d41d4e1d5dceea10e7104786b73624c18a190f # v10
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v10
         with:
           stale-pr-message: "This PR has been inactive for 14 days. It may also be out of date with the base branch. Please rebase or close if no longer needed."
           days-before-pr-stale: 14
